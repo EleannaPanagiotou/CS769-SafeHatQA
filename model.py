@@ -206,13 +206,13 @@ if args.mode == "train":
 # Evaluation code
 elif args.mode == "evaluate":
 
-    model_id = "vikhyatk/moondream2"
-    revision = "2024-08-26"
-    moondream = AutoModelForCausalLM.from_pretrained(
-        model_id, trust_remote_code=True, revision=revision
-    )
-    tokenizer = AutoTokenizer.from_pretrained(model_id, revision=revision)
-    moondream.eval()
+    # model_id = "vikhyatk/moondream2"
+    # revision = "2024-08-26"
+    # moondream = AutoModelForCausalLM.from_pretrained(
+    #     model_id, trust_remote_code=True, revision=revision
+    # )
+    # tokenizer = AutoTokenizer.from_pretrained(model_id, revision=revision)
+    # moondream.eval()
 
     print("Evaluating on the test set...")
     test_accuracy = evaluate_model(moondream, datasets["train"]) #instead of moondream --> args.model_checkpoint
