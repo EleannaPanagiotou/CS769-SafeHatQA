@@ -4,6 +4,9 @@ import math
 import torch
 import random
 import numpy as np
+import re
+from sklearn.metrics import mean_absolute_error, mean_squared_error
+from word2number import w2n
 import argparse
 from torch.utils.data import Dataset, DataLoader
 from bitsandbytes.optim import Adam8bit
@@ -27,7 +30,7 @@ parser.add_argument("--model_checkpoint", type=str, help="Path to a saved model 
 args = parser.parse_args()
 
 # Model and training configurations
-EPOCHS = 1
+EPOCHS = 5
 BATCH_SIZE = 4
 GRAD_ACCUM_STEPS = 2
 LR = 1e-5
@@ -139,17 +142,31 @@ def compute_loss(batch):
     )
     return outputs.loss
 
-# Function to calculate accuracy
-def evaluate_model(model, dataset):
-    correct_answers = 0
-    total_questions = 0
+# Function to extract the first number from a text string
+def extract_number(text):
+    try:
+        # Try converting words to numbers using word2number if digits aren't found
+        match = re.search(r'\d+', text)  # Check for a numeric string
+        if match:
+            return int(match.group())
+        else:
+            # If no digit found, try converting words to numbers
+            return w2n.word_to_num(text.lower())
+    except ValueError:
+        # Return None if conversion fails
+        return None
+
+# Regression-based evaluation function
+def evaluate_model_regression(model, dataset):
+    predictions = []
+    ground_truths = []
 
     for sample in tqdm(dataset):
         encoded_image = model.encode_image(sample['image'])
-        question = sample['qa'][0]['question']
-        ground_truth = sample['qa'][0]['answer']
+        question = sample['qa'][1]['question']
+        ground_truth = extract_number(sample['qa'][1]['answer'])
         
-        # Generate answer
+        # Generate answer and extract number
         md_answer = model.answer_question(
             encoded_image,
             question,
@@ -158,13 +175,24 @@ def evaluate_model(model, dataset):
             no_repeat_ngram_size=5,
             early_stopping=True
         ).strip()
+        predicted_number = extract_number(md_answer)
 
-        # Check if the generated answer matches the ground truth
-        if md_answer == ground_truth:
-            correct_answers += 1
-        total_questions += 1
+        # Append extracted numbers to lists for metric calculations
+        if ground_truth is not None and predicted_number is not None:
+            ground_truths.append(ground_truth)
+            predictions.append(predicted_number)
 
-    return correct_answers / total_questions if total_questions > 0 else 0
+    # Calculate MAE, MSE, RMSE
+    mae = mean_absolute_error(ground_truths, predictions)
+    mse = mean_squared_error(ground_truths, predictions)
+    rmse = np.sqrt(mse)
+    return mae, mse, rmse
+
+# Evaluation function with regression metrics
+def evaluate_all_splits(model, datasets):
+    for split_name, dataset in datasets.items():
+        mae, mse, rmse = evaluate_model_regression(model, dataset)
+        print(f"{split_name.capitalize()} set - MAE: {mae:.2f}, MSE: {mse:.2f}, RMSE: {rmse:.2f}")
 
 # Training code
 if args.mode == "train":
@@ -175,9 +203,9 @@ if args.mode == "train":
     optimizer = Adam8bit([{"params": moondream.text_model.parameters()}], lr=LR * 0.1, betas=(0.9, 0.95), eps=1e-6)
 
     # Training loop
-    moondream.train()
     step = 0
     for epoch in range(EPOCHS):
+        moondream.train()
         for batch in tqdm(train_loader, desc=f"Epoch {epoch + 1}/{EPOCHS}"):
             step += 1
             loss = compute_loss(batch)
@@ -190,30 +218,27 @@ if args.mode == "train":
                 lr = lr_schedule(step // GRAD_ACCUM_STEPS, total_steps)
                 for param_group in optimizer.param_groups:
                     param_group['lr'] = lr
+        
+        print(f"Epoch {epoch + 1}/{EPOCHS} - Loss: {loss.item():.4f}")
 
     # Save model checkpoint after training
     moondream.save_pretrained("checkpoints/moondream-ft")
 
     moondream.eval()
     print("Evaluating on the train set...")
-    train_accuracy = evaluate_model(moondream, datasets["train"])
-    print(f"Train Accuracy: {train_accuracy * 100:.2f}%")
+    mae, mse, rmse = evaluate_model_regression(moondream, datasets["train"])
+    print(f"Train set - MAE: {mae:.2f}, MSE: {mse:.2f}, RMSE: {rmse:.2f}")
 
     print("Evaluating on the validation set...")
-    val_accuracy = evaluate_model(moondream, datasets["val"])
-    print(f"Validation Accuracy: {val_accuracy * 100:.2f}%")
+    mae, mse, rmse = evaluate_model_regression(moondream, datasets["val"])
+    print(f"Validation set - MAE: {mae:.2f}, MSE: {mse:.2f}, RMSE: {rmse:.2f}")
+
+    print("Evaluating on the test set...")
+    mae, mse, rmse = evaluate_model_regression(moondream, datasets["test"])
+    print(f"Test set - MAE: {mae:.2f}, MSE: {mse:.2f}, RMSE: {rmse:.2f}")
 
 # Evaluation code
 elif args.mode == "evaluate":
-
-    # model_id = "vikhyatk/moondream2"
-    # revision = "2024-08-26"
-    # moondream = AutoModelForCausalLM.from_pretrained(
-    #     model_id, trust_remote_code=True, revision=revision
-    # )
-    # tokenizer = AutoTokenizer.from_pretrained(model_id, revision=revision)
-    # moondream.eval()
-
-    print("Evaluating on the test set...")
-    test_accuracy = evaluate_model(moondream, datasets["train"]) #instead of moondream --> args.model_checkpoint
-    print(f"Test Accuracy: {test_accuracy * 100:.2f}%")
+    moondream.eval()
+    # Run evaluation on train, validation, and test sets
+    evaluate_all_splits(moondream, {"train": datasets["train"], "val": datasets["val"], "test": datasets["test"]})
