@@ -128,9 +128,9 @@ def split_and_save_dataset(dataset, train_ratio=0.7, val_ratio=0.15, test_ratio=
         print(f"{split_name.capitalize()} dataset saved to {json_path} with images in {split_dirs[split_name]}.")
 
 # Download and Prepare Dataset Paths
-dataset_folder = "hard_hat_dataset"
+download_and_extract_dataset("hard_hat_dataset")
 # download_and_extract_dataset(dataset_folder)
-
+dataset_folder = "hard_hat_dataset"
 # Define paths to images and annotations based on extraction
 images_dir = os.path.join(dataset_folder, "images")  # Adjust to actual structure
 annotations_dir = os.path.join(dataset_folder, "annotations")
