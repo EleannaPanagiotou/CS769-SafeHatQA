@@ -1,0 +1,18 @@
+name: cs769
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10  # Use a stable Python version
+  - pip=24.3.1
+  - ipykernel
+  - tqdm
+  - pip:
+      - pillow  # Remove version to install the latest compatible version
+      - torch>=2.5.0  # Specify the minimum version
+      - torchvision  # Remove version to get the latest compatible version
+      - kaggle
+      - transformers
+      - pycocotools
+      - timm
+      - scipy
