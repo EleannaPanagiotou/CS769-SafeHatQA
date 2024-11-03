@@ -1,4 +1,4 @@
 checkpoints/
-environment.yml
+# environment.yml
 DETR_reimplementation/
 README.md
