@@ -6,4 +6,5 @@ DETR_reimplementation/hard_hat_data/
 DETR_reimplementation/processed_dataset/
 DETR_reimplementation/Helmet_DETR.ipynb/
 DETR_reimplementation/detr/
+DETR_reimplementation/detr-r50_no-class-heads.pth
 # README.md
