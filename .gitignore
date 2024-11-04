@@ -1,4 +1,8 @@
 checkpoints/
-# environment.yml
-DETR_reimplementation/
-README.md
+environment.yml
+hard_hat_dataset/
+processed_splits/
+DETR_reimplementation/hard_hat_data/
+DETR_reimplementation/processed_dataset/
+DETR_reimplementation/Helmet_DETR.ipynb/
+# README.md
