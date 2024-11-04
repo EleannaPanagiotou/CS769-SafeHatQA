@@ -30,7 +30,7 @@ parser.add_argument("--model_checkpoint", type=str, help="Path to a saved model 
 args = parser.parse_args()
 
 # Model and training configurations
-EPOCHS = 5
+EPOCHS = 20
 BATCH_SIZE = 4
 GRAD_ACCUM_STEPS = 2
 LR = 1e-5
@@ -200,7 +200,7 @@ if args.mode == "train":
     
     # Set up optimizer and scheduler
     total_steps = EPOCHS * len(train_loader) // GRAD_ACCUM_STEPS
-    optimizer = Adam8bit([{"params": moondream.text_model.parameters()}], lr=LR * 0.1, betas=(0.9, 0.95), eps=1e-6)
+    optimizer = Adam8bit([{"params": moondream.text_model.parameters()}], lr=LR * 0.1, betas=(0.9, 0.95), eps=1e-5)
 
     # Training loop
     step = 0
@@ -220,6 +220,12 @@ if args.mode == "train":
                     param_group['lr'] = lr
         
         print(f"Epoch {epoch + 1}/{EPOCHS} - Loss: {loss.item():.4f}")
+        if epoch % 3 == 0:
+            moondream.eval()
+            print("Evaluating on the validation set...")
+            mae, mse, rmse = evaluate_model_regression(moondream, datasets["val"])
+            print(f"Validation set - MAE: {mae:.2f}, MSE: {mse:.2f}, RMSE: {rmse:.2f}")
+
 
     # Save model checkpoint after training
     moondream.save_pretrained("checkpoints/moondream-ft")
