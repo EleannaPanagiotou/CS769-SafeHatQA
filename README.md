@@ -1,8 +1,9 @@
 # AdvancedNLP
 
 ## To install our environment run the following code:
+```bash
 conda env create -f environment.yml
-
+```
 ## To be able to download Hard Hat dataset from kaggle, follow the instructions here: 
 1. pip install kaggle
 2. https://github.com/Kaggle/kaggle-api/blob/main/docs/README.md : To use the Kaggle API, sign up for a Kaggle account at https://www.kaggle.com. Then go to the 'Account' tab of your user profile (https://www.kaggle.com/<username>/account) and select 'Create API Token'. This will trigger the download of kaggle.json, a file containing your API credentials.
