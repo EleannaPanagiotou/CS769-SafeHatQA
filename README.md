@@ -1,8 +1,13 @@
 # CS769
 # SafeHatQA: Vision-Language Model for Hard Hat Detection
 
-
-## To install our environment run the following code:
+## Cloning our code
+To clone our repository run the following command:
+```bash
+git clone https://github.com/EleannaPanagiotou/CS769-Project.git
+```
+## Environment setup
+To install our environment run the following command:
 ```bash
 conda env create -f environment.yml
 ```
