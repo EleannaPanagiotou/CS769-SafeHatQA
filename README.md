@@ -49,7 +49,7 @@ conda env create -f environment.yml
     ```
    After the training process the model will evaluate the fine-tuned moondream2 in train, val and test datasets.
 
-The codes will be improved and updated until the end of the semester.
+**Note: The codes will be improved and updated until the end of the semester.**
 
 
 
