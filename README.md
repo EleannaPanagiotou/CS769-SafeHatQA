@@ -1,4 +1,4 @@
-# CS769: 
+# CS769
 # SafeHatQA: Vision-Language Model for Hard Hat Detection
 
 
