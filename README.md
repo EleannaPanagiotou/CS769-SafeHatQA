@@ -1,4 +1,6 @@
-# AdvancedNLP
+# CS769: 
+# SafeHatQA: Vision-Language Model for Hard Hat Detection
+
 
 ## To install our environment run the following code:
 ```bash
