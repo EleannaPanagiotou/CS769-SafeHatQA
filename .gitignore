@@ -4,4 +4,4 @@ hard_hat_dataset/
 processed_splits/
 DETR_reimplementation/
 Helmet_DETR.ipynb
-README.md
+requirements.txt
