@@ -19,7 +19,8 @@ conda env create -f environment.yml
 2. https://github.com/Kaggle/kaggle-api/blob/main/docs/README.md : To use the Kaggle API, sign up for a Kaggle account at https://www.kaggle.com. Then go to the 'Account' tab of your user profile (https://www.kaggle.com/<username>/account) and select 'Create API Token'. This will trigger the download of kaggle.json, a file containing your API credentials.
 3.  Run the following commands:
     ```bash
-    mkdir -p ~/.kaggle mv /path/to/kaggle.json ~/.kaggle/ 
+    mkdir -p ~/.kaggle 
+    mv /path/to/kaggle.json ~/.kaggle/ 
     chmod 600 ~/.kaggle/kaggle.json
     ```
 
