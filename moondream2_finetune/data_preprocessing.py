@@ -36,18 +36,21 @@ class HardHatQADatasetGeneration(Dataset):
         # Counting "helmet" and "head" objects in the annotation
         helmet_count = 0
         head_count = 0
+        person_count = 0
         for obj in root.findall("object"):
             cls_name = obj.find("name").text
             if cls_name == "helmet":
                 helmet_count += 1
             elif cls_name == "head":
                 head_count += 1
+            elif cls_name == "person":
+                person_count += 1
         
         # Generating Q&A pairs based on counts
         qa_pairs = [
             {
                 "question": "How many people are in this image?",
-                "answer": str(helmet_count + head_count)
+                "answer": str(helmet_count + head_count + person_count)
             },
             {
                 "question": "How many hard hats are in this image?",
@@ -55,7 +58,7 @@ class HardHatQADatasetGeneration(Dataset):
             },
             {
                 "question": "How many people without helmets are in this image?",
-                "answer": str(head_count)
+                "answer": str(head_count + person_count)
             },
             # {
             #     "question": "Are there any people in this image?",
