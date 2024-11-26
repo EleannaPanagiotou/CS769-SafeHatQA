@@ -56,7 +56,35 @@ class HardHatQADatasetGeneration(Dataset):
             {
                 "question": "How many people without helmets are in this image?",
                 "answer": str(head_count)
-            }
+            },
+            # {
+            #     "question": "Are there any people in this image?",
+            #     "answer": "Yes" if helmet_count + head_count > 0 else "No"
+            # },
+            # {
+            #     "question": "Are all people wearing hard hats in this image?",
+            #     "answer": "Yes" if head_count == 0 else "No"
+            # },
+            # {
+            #     "question": "Are there any people without hard hats in this image?",
+            #     "answer": "Yes" if head_count > 0 else "No"
+            # },
+            # {
+            #     "question": "Are there more people with hard hats than without?",
+            #     "answer": "Yes" if helmet_count > head_count else "No"
+            # },
+            # {
+            #     "question": "Are there more people without hard hats than with?",
+            #     "answer": "Yes" if head_count > helmet_count else "No"
+            # },
+            # {
+            #     "question": "Is this scene compliant with safety standards?",
+            #     "answer": "Yes" if head_count == 0 else "No"
+            # },
+            # {
+            #     "question": "Does this image show any safety violations?",
+            #     "answer": "Yes" if head_count > 0 else "No"
+            # }
         ]
         return qa_pairs
 
@@ -139,4 +167,4 @@ annotations_dir = os.path.join(dataset_folder, "annotations")
 hard_hat_dataset = HardHatQADatasetGeneration(images_dir=images_dir, annotations_dir=annotations_dir)
 
 # Split and save the dataset
-split_and_save_dataset(hard_hat_dataset, train_ratio=0.7, val_ratio=0.15, test_ratio=0.15, save_dir="processed_splits")
+split_and_save_dataset(hard_hat_dataset, train_ratio=0.7, val_ratio=0.15, test_ratio=0.15, save_dir="simple_processed_splits")
