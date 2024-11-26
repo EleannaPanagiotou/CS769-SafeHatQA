@@ -30,7 +30,7 @@ parser.add_argument("--model_checkpoint", type=str, help="Path to a saved model 
 args = parser.parse_args()
 
 # Model and training configurations
-EPOCHS = 20
+EPOCHS = 1
 BATCH_SIZE = 4
 GRAD_ACCUM_STEPS = 2
 LR = 1e-5
@@ -61,9 +61,9 @@ class HardHatQADataset(Dataset):
 
 # Load datasets
 datasets = {
-    "train": HardHatQADataset("processed_splits/train.json"),
-    "val": HardHatQADataset("processed_splits/val.json"),
-    "test": HardHatQADataset("processed_splits/test.json"),
+    "train": HardHatQADataset("simple_processed_splits/train.json"),
+    "val": HardHatQADataset("simple_processed_splits/val.json"),
+    "test": HardHatQADataset("simple_processed_splits/test.json"),
 }
 
 # Initialize the model and tokenizer
