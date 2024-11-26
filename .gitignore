@@ -5,3 +5,5 @@ processed_splits/
 DETR_reimplementation/
 Helmet_DETR.ipynb
 requirements.txt
+moondream2_finetune/extended_model.py
+moondream2_finetune/simple_processed_splits/
