@@ -48,26 +48,28 @@ class HardHatQADatasetGeneration(Dataset):
         
         # Generating Q&A pairs based on counts
         qa_pairs = [
-            {
-                "question": "How many people are in this image?",
-                "answer": str(helmet_count + head_count + person_count)
-            },
+            # {
+            #     "question": "How many people are in this image?",
+            #     "answer": str(helmet_count + head_count + person_count)
+            # },
             {
                 "question": "How many hard hats are in this image?",
-                "answer": str(helmet_count)
+                "answer": str(helmet_count),
+                "type": "count"
             },
-            {
-                "question": "How many people without helmets are in this image?",
-                "answer": str(head_count + person_count)
-            },
+            # {
+            #     "question": "How many people without helmets are in this image?",
+            #     "answer": str(head_count + person_count)
+            # },
             # {
             #     "question": "Are there any people in this image?",
             #     "answer": "Yes" if helmet_count + head_count > 0 else "No"
             # },
-            # {
-            #     "question": "Are all people wearing hard hats in this image?",
-            #     "answer": "Yes" if head_count == 0 else "No"
-            # },
+            {
+                "question": "Are all people wearing hard hats in this image?",
+                "answer": "Yes" if head_count + person_count == 0 else "No",
+                "type": "yes_no"
+            },
             # {
             #     "question": "Are there any people without hard hats in this image?",
             #     "answer": "Yes" if head_count > 0 else "No"
@@ -170,4 +172,4 @@ annotations_dir = os.path.join(dataset_folder, "annotations")
 hard_hat_dataset = HardHatQADatasetGeneration(images_dir=images_dir, annotations_dir=annotations_dir)
 
 # Split and save the dataset
-split_and_save_dataset(hard_hat_dataset, train_ratio=0.7, val_ratio=0.15, test_ratio=0.15, save_dir="simple_processed_splits")
+split_and_save_dataset(hard_hat_dataset, train_ratio=0.7, val_ratio=0.15, test_ratio=0.15, save_dir="processed_splits")
