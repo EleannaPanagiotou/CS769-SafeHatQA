@@ -1,5 +1,7 @@
 checkpoints/
+moondream2_finetune/checkpoints_final/
 environment.yml
+moondream2_finetune/hard_hat_dataset/
 hard_hat_dataset/
 processed_splits/
 DETR_reimplementation/
@@ -7,3 +9,7 @@ Helmet_DETR.ipynb
 requirements.txt
 moondream2_finetune/extended_model.py
 moondream2_finetune/simple_processed_splits/
+moondream2_finetune/api.py
+moondream2_finetune/outputs/
+moondream2_finetune/checkpoints_best/
+moondream2_finetune/evaluate_model.py
