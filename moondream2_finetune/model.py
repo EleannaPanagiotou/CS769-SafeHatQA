@@ -30,8 +30,8 @@ parser.add_argument("--model_checkpoint", type=str, help="Path to a saved model 
 args = parser.parse_args()
 
 # Model and training configurations
-EPOCHS = 1
-BATCH_SIZE = 4
+EPOCHS = 2
+BATCH_SIZE = 1
 GRAD_ACCUM_STEPS = 2
 LR = 1e-5
 USE_WANDB = False  # Set to True if you want to log with Weights and Biases
@@ -61,9 +61,9 @@ class HardHatQADataset(Dataset):
 
 # Load datasets
 datasets = {
-    "train": HardHatQADataset("simple_processed_splits/train.json"),
-    "val": HardHatQADataset("simple_processed_splits/val.json"),
-    "test": HardHatQADataset("simple_processed_splits/test.json"),
+    "train": HardHatQADataset("one_batch_processed_splits/train.json"),
+    "val": HardHatQADataset("one_batch_processed_splits/val.json"),
+    "test": HardHatQADataset("one_batch_processed_splits/test.json"),
 }
 
 # Initialize the model and tokenizer
@@ -197,7 +197,7 @@ def evaluate_all_splits(model, datasets):
 # Training code
 if args.mode == "train":
     train_loader = DataLoader(datasets["train"], batch_size=BATCH_SIZE, shuffle=True, collate_fn=collate_fn)
-    
+    train_loader = [next(iter(train_loader))]
     # Set up optimizer and scheduler
     total_steps = EPOCHS * len(train_loader) // GRAD_ACCUM_STEPS
     optimizer = Adam8bit([{"params": moondream.text_model.parameters()}], lr=LR * 0.1, betas=(0.9, 0.95), eps=1e-5)
