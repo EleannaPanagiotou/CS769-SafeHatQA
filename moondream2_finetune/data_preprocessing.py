@@ -43,14 +43,12 @@ class HardHatQADatasetGeneration(Dataset):
                 helmet_count += 1
             elif cls_name == "head":
                 head_count += 1
-            elif cls_name == "person":
-                person_count += 1
         
         # Generating Q&A pairs based on counts
         qa_pairs = [
             {
                 "question": "How many people are in this image?",
-                "answer": str(helmet_count + head_count + person_count),
+                "answer": str(helmet_count + head_count),
                 "type": "count"
             },
             {
@@ -59,18 +57,18 @@ class HardHatQADatasetGeneration(Dataset):
                 "type": "count"
             },
             {
-                "question": "How many people without helmets are in this image?",
-                "answer": str(head_count + person_count),
+                "question": "How many people without hard hats are in this image?",
+                "answer": str(head_count),
                 "type": "count"
             },
             {
                 "question": "Are there any people in this image?",
-                "answer": "Yes" if helmet_count + head_count + person_count > 0 else "No",
+                "answer": "Yes" if helmet_count + head_count > 0 else "No",
                 "type": "yes_no"
             },
             {
                 "question": "Are all people wearing hard hats in this image?",
-                "answer": "Yes" if head_count + person_count == 0 else "No",
+                "answer": "Yes" if head_count == 0 else "No",
                 "type": "yes_no"
             },
             {
@@ -80,24 +78,24 @@ class HardHatQADatasetGeneration(Dataset):
             },
             {
                 "question": "Are there more people with hard hats than without?",
-                "answer": "Yes" if helmet_count > (head_count + person_count) else "No",
+                "answer": "Yes" if helmet_count > head_count else "No",
                 "type": "yes_no"
             },
             {
                 "question": "Are there more people without hard hats than with?",
-                "answer": "Yes" if (head_count + person_count) > helmet_count else "No",
-                "type": "yes_no"
-            },
-            {
-                "question": "Is this scene compliant with safety standards?",
-                "answer": "Yes" if (head_count + person_count) == 0 else "No",
-                "type": "yes_no"
-            },
-            {
-                "question": "Does this image show any safety violations?",
-                "answer": "Yes" if (head_count + person_count) > 0 else "No",
+                "answer": "Yes" if head_count > helmet_count else "No",
                 "type": "yes_no"
             }
+            # {
+            #     "question": "Is this scene compliant with safety standards?",
+            #     "answer": "Yes" if head_count == 0 else "No",
+            #     "type": "yes_no"
+            # },
+            # {
+            #     "question": "Does this image show any safety violations?",
+            #     "answer": "Yes" if (head_count + person_count) > 0 else "No",
+            #     "type": "yes_no"
+            # }
         ]
         return qa_pairs
 
