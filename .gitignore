@@ -9,7 +9,6 @@ Helmet_DETR.ipynb
 requirements.txt
 moondream2_finetune/extended_model.py
 moondream2_finetune/final_processed_splits/
-moondream2_finetune/api.py
 moondream2_finetune/outputs/
 moondream2_finetune/checkpoints_final_best_0/
 moondream2_finetune/checkpoints_final_best_1/
