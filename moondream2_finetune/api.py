@@ -47,7 +47,7 @@ for question in questions:
 
 #######Finetuned Model#######
 
-model_ft = "checkpoints_final_best_4/moondream-ft"
+model_ft = "checkpoints_1/moondream-ft"
 
 model = AutoModelForCausalLM.from_pretrained(
     model_ft, trust_remote_code=True, revision=revision, attn_implementation=None, 
