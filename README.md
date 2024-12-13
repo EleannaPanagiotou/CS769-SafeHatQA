@@ -1,5 +1,6 @@
 # CS769
 # SafeHatQA: Vision-Language Model for Hard Hat Detection
+# Eleanna Panagiotou, Zack Sifakis 
 
 ## Cloning our code
 To clone our repository run the following command:
@@ -48,9 +49,17 @@ conda env create -f environment.yml
     ```bash
     python3 model.py --mode="train" --model_checkpoint="checkpoints/moondream-ft"
     ```
-   After the training process the model will evaluate the fine-tuned moondream2 in train, val and test datasets.
+4. To evaluate the model in the fine-tuned moondream2 for all splits (train, val, test) run the following command: 
+    ```bash
+    python model.py --mode="evaluate" --model_checkpoint="checkpoints_{num_of_epochs}/moondream-ft"
+    ```
+5. To evaluate the model in only one image you can run the following command:
+    ```bash
+    python api.py
+    ```
+    Inside api.py script you can change the path of the image and the checkpoint model.
 
-**Note: The codes will be improved and updated until the end of the semester.**
+**Note:  All group members contributed equally to every phase of the project, including dataset preparation, coding, fine-tuning, error analysis, and documentation. The experiments were executed on Eleanna's lab server, which is why the code is submitted to the repository under her account.**
 
 
 
