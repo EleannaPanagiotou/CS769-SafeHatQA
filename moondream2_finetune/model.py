@@ -13,6 +13,7 @@ from bitsandbytes.optim import Adam8bit
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from tqdm import tqdm
 from PIL import Image
+from torch.optim.lr_scheduler import LambdaLR
 
 # Set seed for reproducibility
 SEED = 42
@@ -30,11 +31,11 @@ parser.add_argument("--model_checkpoint", type=str, help="Path to a saved model 
 args = parser.parse_args()
 
 # Model and training configurations
-EPOCHS = 2
-BATCH_SIZE = 1
+EPOCHS = 5
+BATCH_SIZE = 2
 GRAD_ACCUM_STEPS = 2
 LR = 1e-5
-USE_WANDB = False  # Set to True if you want to log with Weights and Biases
+USE_WANDB = False 
 ANSWER_EOS = "<|endoftext|>"
 IMG_TOKENS = 729
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -44,10 +45,9 @@ MD_REVISION = "2024-07-23"
 # Dataset class for Hard Hat Q&A dataset
 class HardHatQADataset(Dataset):
     def __init__(self, json_file):
-        # Load the JSON data with image paths and QA pairs
         with open(json_file, "r") as f:
             self.data = json.load(f)
-    
+
     def __len__(self):
         return len(self.data)
 
@@ -56,21 +56,21 @@ class HardHatQADataset(Dataset):
         image = Image.open(sample["image_path"]).convert("RGB")
         return {
             "image": image,
-            "qa": sample["qa"]
+            "qa": sample["qa"]  # Include question, answer, and type
         }
 
 # Load datasets
 datasets = {
-    "train": HardHatQADataset("one_batch_processed_splits/train.json"),
-    "val": HardHatQADataset("one_batch_processed_splits/val.json"),
-    "test": HardHatQADataset("one_batch_processed_splits/test.json"),
+    "train": HardHatQADataset("processed_splits/train.json"),
+    "val": HardHatQADataset("processed_splits/val.json"),
+    "test": HardHatQADataset("processed_splits/test.json"),
 }
 
 # Initialize the model and tokenizer
 tokenizer = AutoTokenizer.from_pretrained("vikhyatk/moondream2", revision=MD_REVISION)
 moondream = AutoModelForCausalLM.from_pretrained(
     "vikhyatk/moondream2", revision=MD_REVISION, trust_remote_code=True,
-    attn_implementation=None,  # Disable FlashAttention2 if not available
+    attn_implementation=None,  
     torch_dtype=DTYPE, device_map={"": DEVICE}
 )
 
@@ -79,24 +79,37 @@ def collate_fn(batch):
     images = [sample['image'] for sample in batch]
     images = [moondream.vision_encoder.preprocess(image) for image in images]
 
-    labels_acc = []
     tokens_acc = []
+    labels_acc = []
+    types_acc = []  # New accumulator for answer types
 
     for sample in batch:
         toks = [tokenizer.bos_token_id]
         labs = [-100] * (IMG_TOKENS + 1)
+        types = []
 
         for qa in sample['qa']:
+            # Tokenize the question
             q_t = tokenizer(f"\n\nQuestion: {qa['question']}\n\nAnswer:", add_special_tokens=False).input_ids
             toks.extend(q_t)
             labs.extend([-100] * len(q_t))
 
-            a_t = tokenizer(f" {qa['answer']}{ANSWER_EOS}", add_special_tokens=False).input_ids
+            # Tokenize the answer
+            answer = qa['answer']
+            answer_type = qa.get('type', 'numerical')  # Default to numerical if type is missing
+            if answer_type == 'yes_no':
+                a_t = [1] if answer.lower() == "yes" else [0]  # Binary labels for Yes/No
+                types.append('yes_no')
+            else:
+                a_t = tokenizer(f" {answer}{ANSWER_EOS}", add_special_tokens=False).input_ids
+                types.append('numerical')
+
             toks.extend(a_t)
             labs.extend(a_t)
 
         tokens_acc.append(toks)
         labels_acc.append(labs)
+        types_acc.append(types)
 
     max_len = max(len(labels) for labels in labels_acc)
     attn_mask_acc = []
@@ -114,6 +127,7 @@ def collate_fn(batch):
         torch.stack([torch.tensor(t, dtype=torch.long) for t in tokens_acc]),
         torch.stack([torch.tensor(l, dtype=torch.long) for l in labels_acc]),
         torch.stack([torch.tensor(a, dtype=torch.bool) for a in attn_mask_acc]),
+        types_acc,  # Pass answer types
     )
 
 # Learning rate scheduler
@@ -124,9 +138,8 @@ def lr_schedule(step, max_steps):
     else:
         return 0.1 * LR + 0.9 * LR * (1 + math.cos(math.pi * (x - 0.1))) / 2
 
-# Loss computation
 def compute_loss(batch):
-    images, tokens, labels, attn_mask = batch
+    images, tokens, labels, attn_mask, types = batch
     tokens, labels, attn_mask = tokens.to(DEVICE), labels.to(DEVICE), attn_mask.to(DEVICE)
 
     with torch.no_grad():
@@ -140,111 +153,220 @@ def compute_loss(batch):
         labels=labels,
         attention_mask=attn_mask,
     )
+
     return outputs.loss
 
 # Function to extract the first number from a text string
 def extract_number(text):
     try:
         # Try converting words to numbers using word2number if digits aren't found
-        match = re.search(r'\d+', text)  # Check for a numeric string
+        match = re.search(r'\d+', text) 
         if match:
             return int(match.group())
         else:
             # If no digit found, try converting words to numbers
             return w2n.word_to_num(text.lower())
     except ValueError:
-        # Return None if conversion fails
         return None
+    
+def extract_yes_no(answer):
+    """
+    Extract 'Yes' or 'No' from the given answer in a case-insensitive manner.
 
-# Regression-based evaluation function
-def evaluate_model_regression(model, dataset):
-    predictions = []
-    ground_truths = []
+    Args:
+        answer (str): The model's generated answer.
 
-    for sample in tqdm(dataset):
-        encoded_image = model.encode_image(sample['image'])
-        question = sample['qa'][1]['question']
-        ground_truth = extract_number(sample['qa'][1]['answer'])
-        
-        # Generate answer and extract number
-        md_answer = model.answer_question(
-            encoded_image,
-            question,
-            tokenizer=tokenizer,
-            num_beams=4,
-            no_repeat_ngram_size=5,
-            early_stopping=True
-        ).strip()
-        predicted_number = extract_number(md_answer)
+    Returns:
+        str: 'Yes' or 'No' if found, otherwise 'No prediction'.
+    """
+    match = re.search(r"\b(yes|no|not)\b", answer, re.IGNORECASE)
+    if match:
+        extracted = match.group(0).lower()
+        return "No" if extracted == "not" else extracted.capitalize()
+    
+    return match.group(0).capitalize() if match else "No prediction"
 
-        # Append extracted numbers to lists for metric calculations
-        if ground_truth is not None and predicted_number is not None:
-            ground_truths.append(ground_truth)
-            predictions.append(predicted_number)
+question_groups = {
+    "count": ["How many people are in this image?", 
+              "How many hard hats are in this image?", 
+              "How many people without hard hats are in this image?"],
+    "comparison": ["Are there more people with hard hats than without?", 
+                   "Are there more people without hard hats than with?"],
+    "yes_no": ["Are there any people in this image?",
+               "Are all people wearing hard hats in this image?",
+               "Are there any people without hard hats in this image?"]
+}
 
-    # Calculate MAE, MSE, RMSE
-    mae = mean_absolute_error(ground_truths, predictions)
-    mse = mean_squared_error(ground_truths, predictions)
-    rmse = np.sqrt(mse)
-    return mae, mse, rmse
+def collate_fn_eval(batch):
+    """
+    Collate function for evaluation.
+    Only processes images and QA pairs.
+    """
+    images = [sample['image'] for sample in batch]
+    images = [moondream.vision_encoder.preprocess(image) for image in images]  # Preprocess images
+    qa_pairs = [sample['qa'] for sample in batch]  # Extract QA pairs
 
-# Evaluation function with regression metrics
-def evaluate_all_splits(model, datasets):
-    for split_name, dataset in datasets.items():
-        mae, mse, rmse = evaluate_model_regression(model, dataset)
-        print(f"{split_name.capitalize()} set - MAE: {mae:.2f}, MSE: {mse:.2f}, RMSE: {rmse:.2f}")
+    return images, qa_pairs
 
-# Training code
+def evaluate_model(model, dataset, question_groups, tokenizer):
+    question_metrics = {q: {"correct": 0, "total": 0} for q in question_groups["count"] + question_groups["comparison"] + question_groups["yes_no"]}
+    group_metrics = {group: {"correct": 0, "total": 0} for group in question_groups.keys()}
+
+    numerical_predictions = []
+    numerical_ground_truths = []
+
+    model.eval() 
+    with torch.no_grad(): 
+        print(type(dataset))
+        for sample in tqdm(dataset):
+            image = sample['image']
+            qa_pairs = sample['qa']
+            encoded_image = model.encode_image(image)
+
+            for qa in qa_pairs:
+                question = qa['question']
+                answer_type = qa['type']
+                ground_truth = qa['answer']
+
+                # Generate model answer
+                model_answer = model.answer_question(
+                    encoded_image,
+                    question,
+                    tokenizer=tokenizer,
+                    num_beams=4,
+                    no_repeat_ngram_size=5,
+                    early_stopping=True
+                ).strip()
+
+                # Evaluate Yes/No questions
+                if answer_type == "yes_no":
+                    extracted_answer = extract_yes_no(model_answer)
+                    is_correct = extracted_answer.lower() == ground_truth.lower()
+                    question_metrics[question]["correct"] += int(is_correct)
+                    question_metrics[question]["total"] += 1
+                    group_metrics["yes_no"]["correct"] += int(is_correct)
+                    group_metrics["yes_no"]["total"] += 1
+
+                # Evaluate Count questions
+                elif answer_type == "count":
+                    ground_truth_num = extract_number(ground_truth)
+                    predicted_num = extract_number(model_answer)
+                    if ground_truth_num is not None and predicted_num is not None:
+                        numerical_ground_truths.append(ground_truth_num)
+                        numerical_predictions.append(predicted_num)
+
+                        # Count as correct if numbers match
+                        is_correct = ground_truth_num == predicted_num
+                        question_metrics[question]["correct"] += int(is_correct)
+                        question_metrics[question]["total"] += 1
+                        group_metrics["count"]["correct"] += int(is_correct)
+                        group_metrics["count"]["total"] += 1
+
+                # Evaluate Comparison questions
+                if question in question_groups["comparison"]:
+                    extracted_answer = extract_yes_no(model_answer)
+                    is_correct = extracted_answer.lower() == ground_truth.lower()
+                    question_metrics[question]["correct"] += int(is_correct)
+                    question_metrics[question]["total"] += 1
+                    group_metrics["comparison"]["correct"] += int(is_correct)
+                    group_metrics["comparison"]["total"] += 1
+
+    # Calculate overall metrics for numerical answers
+    mae = mean_absolute_error(numerical_ground_truths, numerical_predictions) if numerical_predictions else float('nan')
+    mse = mean_squared_error(numerical_ground_truths, numerical_predictions) if numerical_predictions else float('nan')
+    rmse = np.sqrt(mse) if numerical_predictions else float('nan')
+
+    # Calculate accuracy for each question and group
+    question_accuracies = {q: m["correct"] / m["total"] if m["total"] > 0 else 0 for q, m in question_metrics.items()}
+    group_accuracies = {g: m["correct"] / m["total"] if m["total"] > 0 else 0 for g, m in group_metrics.items()}
+
+    # Display individual question accuracies
+    print("Question-level Metrics:")
+    for question, accuracy in question_accuracies.items():
+        print(f" - {question}: {accuracy:.2f}")
+
+    # Display group-level accuracies
+    print("\nGroup-level Metrics:")
+    for group, accuracy in group_accuracies.items():
+        print(f" - {group.capitalize()} Accuracy: {accuracy:.2f}")
+
+    # Display numerical metrics
+    print("\nNumerical Metrics:")
+    print(f" - MAE: {mae:.2f}")
+    print(f" - MSE: {mse:.2f}")
+    print(f" - RMSE: {rmse:.2f}")
+
+
 if args.mode == "train":
     train_loader = DataLoader(datasets["train"], batch_size=BATCH_SIZE, shuffle=True, collate_fn=collate_fn)
-    train_loader = [next(iter(train_loader))]
-    # Set up optimizer and scheduler
+    optimizer = Adam8bit([{"params": moondream.parameters()}], lr=LR * 0.1, betas=(0.9, 0.95), eps=1e-5)
+
+    # Set up scheduler
     total_steps = EPOCHS * len(train_loader) // GRAD_ACCUM_STEPS
-    optimizer = Adam8bit([{"params": moondream.text_model.parameters()}], lr=LR * 0.1, betas=(0.9, 0.95), eps=1e-5)
 
     # Training loop
     step = 0
     for epoch in range(EPOCHS):
         moondream.train()
-        for batch in tqdm(train_loader, desc=f"Epoch {epoch + 1}/{EPOCHS}"):
-            step += 1
+        epoch_loss = 0  
+
+        for batch in tqdm(train_loader):
+            images, tokens, labels, attn_mask, types = batch
+
+            # Ensure all tensors and model are on the correct device
+            tokens, labels, attn_mask = tokens.to(DEVICE), labels.to(DEVICE), attn_mask.to(DEVICE)
+            moondream = moondream.to(DEVICE)
+
+            # Compute loss
             loss = compute_loss(batch)
+            epoch_loss += loss.item()
+
+            if not loss.requires_grad:
+                print("Debugging Loss:")
+                print(f"Loss: {loss}, Requires Grad: {loss.requires_grad}")
+                raise RuntimeError("Loss does not require grad. Check model or loss computation.")
+
             loss.backward()
 
+            # Gradient accumulation
             if step % GRAD_ACCUM_STEPS == 0:
                 optimizer.step()
-                optimizer.zero_grad()
-
                 lr = lr_schedule(step // GRAD_ACCUM_STEPS, total_steps)
                 for param_group in optimizer.param_groups:
-                    param_group['lr'] = lr
-        
-        print(f"Epoch {epoch + 1}/{EPOCHS} - Loss: {loss.item():.4f}")
-        if epoch % 3 == 0:
-            moondream.eval()
-            print("Evaluating on the validation set...")
-            mae, mse, rmse = evaluate_model_regression(moondream, datasets["val"])
-            print(f"Validation set - MAE: {mae:.2f}, MSE: {mse:.2f}, RMSE: {rmse:.2f}")
+                    param_group['lr'] = lr  
+                optimizer.zero_grad()
 
+            step += 1
 
-    # Save model checkpoint after training
-    moondream.save_pretrained("checkpoints/moondream-ft")
+        print(f"Epoch {epoch + 1}/{EPOCHS} - Loss: {epoch_loss / len(train_loader):.4f}")
 
-    moondream.eval()
-    print("Evaluating on the train set...")
-    mae, mse, rmse = evaluate_model_regression(moondream, datasets["train"])
-    print(f"Train set - MAE: {mae:.2f}, MSE: {mse:.2f}, RMSE: {rmse:.2f}")
+        # Save model checkpoint after training
+        savepath = "checkpoints_" + str(epoch) + "/moondream-ft"
+        moondream.save_pretrained(savepath)
 
-    print("Evaluating on the validation set...")
-    mae, mse, rmse = evaluate_model_regression(moondream, datasets["val"])
-    print(f"Validation set - MAE: {mae:.2f}, MSE: {mse:.2f}, RMSE: {rmse:.2f}")
-
-    print("Evaluating on the test set...")
-    mae, mse, rmse = evaluate_model_regression(moondream, datasets["test"])
-    print(f"Test set - MAE: {mae:.2f}, MSE: {mse:.2f}, RMSE: {rmse:.2f}")
-
-# Evaluation code
+# Evaluation-only mode
 elif args.mode == "evaluate":
+    # Load model checkpoint
+    if not args.model_checkpoint:
+        moondream = AutoModelForCausalLM.from_pretrained(
+            "vikhyatk/moondream2", 
+            revision=MD_REVISION, 
+            trust_remote_code=True,
+            attn_implementation=None,  
+            torch_dtype=DTYPE, 
+            device_map={"": DEVICE}
+        )
+    else:
+        moondream = AutoModelForCausalLM.from_pretrained(
+            args.model_checkpoint, 
+            torch_dtype=DTYPE, 
+            device_map={"": DEVICE}, 
+            trust_remote_code=True
+        )
+    
     moondream.eval()
-    # Run evaluation on train, validation, and test sets
-    evaluate_all_splits(moondream, {"train": datasets["train"], "val": datasets["val"], "test": datasets["test"]})
+
+    # Iterate through datasets for evaluation
+    for split_name, dataset in datasets.items():
+        print(f"Evaluating on the {split_name} split...")
+        evaluate_model(moondream, dataset, question_groups, tokenizer)
