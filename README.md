@@ -59,8 +59,6 @@ conda env create -f environment.yml
     ```
     Inside api.py script you can change the path of the image and the checkpoint model.
 
-**Note:  All group members contributed equally to every phase of the project, including dataset preparation, coding, fine-tuning, error analysis, and documentation. The experiments were executed on Eleanna's lab server, which is why the code is submitted to the repository under her account.**
-
 
 
 
